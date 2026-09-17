@@ -1,0 +1,52 @@
+#!/bin/bash
+
+set -u
+
+xampp=/opt/lampp/xampp
+
+if [[ ${1:-} == --check ]]; then
+  for command in zenity pkexec; do
+    command -v "$command" >/dev/null || {
+      printf 'Missing required command: %s\n' "$command" >&2
+      exit 1
+    }
+  done
+  [[ -x $xampp ]] || {
+    printf 'XAMPP control command is missing or not executable: %s\n' "$xampp" >&2
+    exit 1
+  }
+  exit 0
+fi
+
+if [[ ! -x $xampp ]]; then
+  zenity --error --title='XAMPP Manager' --no-markup \
+    --text="XAMPP is not installed at $xampp."
+  exit 1
+fi
+
+while :; do
+  action=$(zenity --list \
+    --title='XAMPP Manager' \
+    --text='Choose an action for the XAMPP stack.' \
+    --column='Action' \
+    --column='Command' \
+    --hide-column=2 \
+    --print-column=2 \
+    --width=420 \
+    --height=300 \
+    'Show status' status \
+    'Start all services' start \
+    'Stop all services' stop \
+    'Restart all services' restart) || exit 0
+
+  output=$(pkexec "$xampp" "$action" 2>&1)
+  result=$?
+
+  if ((result == 0)); then
+    zenity --info --title='XAMPP Manager' --no-markup \
+      --text="${output:-XAMPP command completed successfully.}"
+  else
+    zenity --error --title='XAMPP Manager' --no-markup \
+      --text="${output:-XAMPP command failed or authentication was cancelled.}"
+  fi
+done
