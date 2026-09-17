@@ -1,46 +1,320 @@
 #!/bin/bash
-set -u
 
-panel_property=/panels/panel-2/output-name
-last_topology=
+set -uo pipefail
 
-export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=/run/user/$(id -u)/bus}"
+readonly panel_property=/panels/panel-2/output-name
+readonly startup_timeout=${PANEL_STARTUP_TIMEOUT:-120}
+readonly debounce_seconds=${PANEL_DEBOUNCE_SECONDS:-3}
+readonly restart_cooldown=${PANEL_RESTART_COOLDOWN:-300}
+readonly allow_restart=${PANEL_ALLOW_RESTART:-1}
+readonly runtime_dir=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
+readonly lock_file=$runtime_dir/xfce-panel-preferred-monitor.lock
+readonly restart_stamp=$runtime_dir/xfce-panel-preferred-monitor.last-restart
 
-start_panel_if_missing() {
-  if ! pgrep -x xfce4-panel >/dev/null 2>&1; then
-    xfce4-panel >/dev/null 2>&1 &
-    sleep 1
-  fi
+mode=${1:---watch}
+
+log() {
+  printf '%s [%s] %s\n' "$(date --iso-8601=seconds)" "$$" "$*"
 }
 
-while :; do
-  xrandr_state=$(xrandr --query 2>/dev/null || true)
-  topology=$(printf '%s\n' "$xrandr_state" | awk '$2 == "connected" { print $1, $3, $4 }')
-  target=$(printf '%s\n' "$xrandr_state" | awk '
-    $2 == "connected" && fallback == "" { fallback=$1 }
-    $2 == "connected" && $3 == "primary" { print $1; found=1; exit }
-    END { if (!found) print fallback }
+require_commands() {
+  local command
+  local missing=0
+
+  for command in awk flock gdbus pgrep stdbuf xev xfconf-query xrandr xwininfo; do
+    if ! command -v "$command" >/dev/null; then
+      log "ERROR: required command is missing: $command"
+      missing=1
+    fi
+  done
+
+  return "$missing"
+}
+
+load_session_environment() {
+  local process_name pid entry name value
+
+  export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$runtime_dir/bus}"
+
+  if [[ -n ${DISPLAY:-} ]] && xrandr --query >/dev/null 2>&1; then
+    return 0
+  fi
+
+  for process_name in xfce4-session xfce4-panel; do
+    while IFS= read -r pid; do
+      [[ -r /proc/$pid/environ ]] || continue
+      while IFS= read -r -d '' entry; do
+        name=${entry%%=*}
+        value=${entry#*=}
+        case $name in
+          DISPLAY|XAUTHORITY|DBUS_SESSION_BUS_ADDRESS)
+            printf -v "$name" '%s' "$value"
+            export "$name"
+            ;;
+        esac
+      done < "/proc/$pid/environ"
+      if [[ -n ${DISPLAY:-} ]] && xrandr --query >/dev/null 2>&1; then
+        return 0
+      fi
+    done < <(pgrep -u "$(id -u)" -x "$process_name" 2>/dev/null || true)
+  done
+
+  return 1
+}
+
+panel_process_count() {
+  pgrep -u "$(id -u)" -x xfce4-panel 2>/dev/null | awk 'END { print NR + 0 }'
+}
+
+panel_bus_available() {
+  gdbus call --session \
+    --dest org.freedesktop.DBus \
+    --object-path /org/freedesktop/DBus \
+    --method org.freedesktop.DBus.NameHasOwner \
+    org.xfce.Panel 2>/dev/null | grep -q true
+}
+
+session_ready() {
+  [[ ${XDG_CURRENT_DESKTOP:-} == *XFCE* ]] || return 1
+  load_session_environment || return 1
+  [[ $(panel_process_count) == 1 ]] || return 1
+  panel_bus_available || return 1
+  xfconf-query -c xfce4-panel -p "$panel_property" >/dev/null 2>&1
+}
+
+wait_for_session() {
+  local waited=0
+
+  while ((waited < startup_timeout)); do
+    if session_ready; then
+      log "XFCE session, XRandR, xfconf, and one panel instance are ready"
+      return 0
+    fi
+    sleep 1
+    ((waited += 1))
+  done
+
+  log "ERROR: graphical XFCE session was not ready after ${startup_timeout}s"
+  return 1
+}
+
+topology_signature() {
+  xrandr --query 2>/dev/null | awk '
+    $2 == "connected" {
+      primary = ($3 == "primary" ? "primary" : "secondary")
+      geometry = ($3 == "primary" ? $4 : $3)
+      print $1, primary, geometry
+    }
+  '
+}
+
+set_native_primary() {
+  local current
+
+  current=$(xfconf-query -c xfce4-panel -p "$panel_property" 2>/dev/null) || {
+    log "ERROR: cannot read $panel_property"
+    return 1
+  }
+
+  if [[ $current == Primary ]]; then
+    return 0
+  fi
+
+  log "Setting $panel_property from '$current' to XFCE's native 'Primary' output"
+  xfconf-query -c xfce4-panel -p "$panel_property" -s Primary
+}
+
+primary_geometry() {
+  local geometry
+
+  geometry=$(xrandr --query 2>/dev/null | awk '
+    $2 == "connected" && $3 == "primary" { print $4; exit }
   ')
 
-  [ -n "$target" ] || { sleep 3; continue; }
-
-  current=$(xfconf-query -c xfce4-panel -p "$panel_property" 2>/dev/null || true)
-  if [ "$current" != "$target" ]; then
-    xfconf-query -c xfce4-panel -p "$panel_property" -s "$target"
+  if [[ $geometry =~ ^([0-9]+)x([0-9]+)\+(-?[0-9]+)\+(-?[0-9]+) ]]; then
+    primary_width=${BASH_REMATCH[1]}
+    primary_height=${BASH_REMATCH[2]}
+    primary_x=${BASH_REMATCH[3]}
+    primary_y=${BASH_REMATCH[4]}
+    return 0
   fi
 
-  if [ "$topology" != "$last_topology" ]; then
-    # Xfdesktop and the panel can retain the geometry of a removed output.
-    # Reload both whenever an output connects, disconnects, moves, or becomes primary.
-    xfdesktop --reload >/dev/null 2>&1 || true
-    xfce4-panel --restart >/dev/null 2>&1 || true
+  return 1
+}
+
+panel_on_primary() {
+  local id info x y width height center_x center_y
+
+  primary_geometry || return 1
+
+  while IFS= read -r id; do
+    [[ $id =~ ^0x[0-9a-fA-F]+$ ]] || continue
+    info=$(xwininfo -id "$id" 2>/dev/null) || continue
+    grep -q 'Map State: IsViewable' <<<"$info" || continue
+    grep -q 'Class: InputOutput' <<<"$info" || continue
+
+    x=$(awk -F: '/Absolute upper-left X:/ { gsub(/ /, "", $2); print $2 }' <<<"$info")
+    y=$(awk -F: '/Absolute upper-left Y:/ { gsub(/ /, "", $2); print $2 }' <<<"$info")
+    width=$(awk -F: '/^[[:space:]]*Width:/ { gsub(/ /, "", $2); print $2 }' <<<"$info")
+    height=$(awk -F: '/^[[:space:]]*Height:/ { gsub(/ /, "", $2); print $2 }' <<<"$info")
+    [[ $x =~ ^-?[0-9]+$ && $y =~ ^-?[0-9]+$ && $width =~ ^[0-9]+$ && $height =~ ^[0-9]+$ ]] || continue
+
+    center_x=$((x + width / 2))
+    center_y=$((y + height / 2))
+    if ((center_x >= primary_x && center_x < primary_x + primary_width
+        && center_y >= primary_y && center_y < primary_y + primary_height)); then
+      return 0
+    fi
+  done < <(xwininfo -root -tree 2>/dev/null | awk '/"xfce4-panel"/ { print $1 }')
+
+  return 1
+}
+
+restart_panel_over_dbus() {
+  local now last_restart=0 output result waited
+
+  [[ $allow_restart == 1 ]] || {
+    log "Panel placement is wrong, but restart fallback is disabled"
+    return 1
+  }
+
+  [[ $(panel_process_count) == 1 ]] || {
+    log "ERROR: refusing restart because the panel process count is not exactly one"
+    return 1
+  }
+  panel_bus_available || {
+    log "ERROR: refusing restart because org.xfce.Panel is unavailable"
+    return 1
+  }
+
+  now=$(date +%s)
+  if [[ -r $restart_stamp ]]; then
+    read -r last_restart < "$restart_stamp" || last_restart=0
+  fi
+  [[ $last_restart =~ ^[0-9]+$ ]] || last_restart=0
+  if ((now - last_restart < restart_cooldown)); then
+    log "ERROR: placement is still wrong; restart suppressed by ${restart_cooldown}s cooldown"
+    return 1
+  fi
+
+  printf '%s\n' "$now" > "$restart_stamp"
+  log "WARNING: verified placement failure; requesting one panel restart over D-Bus"
+  output=$(gdbus call --session \
+    --dest org.xfce.Panel \
+    --object-path /org/xfce/Panel \
+    --method org.xfce.Panel.Terminate true 2>&1)
+  result=$?
+  if ((result != 0)); then
+    log "D-Bus restart request returned status $result: $output"
+  fi
+
+  for ((waited = 0; waited < 20; waited += 1)); do
     sleep 1
-    start_panel_if_missing
-    last_topology=$topology
-  else
-    # A panel restart can occasionally stop without relaunching. Repair that too.
-    start_panel_if_missing
+    if [[ $(panel_process_count) == 1 ]] && panel_bus_available && panel_on_primary; then
+      log "Panel returned on the primary monitor after the D-Bus restart"
+      return 0
+    fi
+  done
+
+  log "ERROR: panel did not recover on the primary monitor; no further action taken"
+  return 1
+}
+
+reconcile_panel() {
+  local reason=${1:-manual}
+  local before after attempt
+
+  before=$(topology_signature) || return 1
+  [[ -n $before ]] || {
+    log "No connected XRandR outputs; deferring reconciliation"
+    return 1
+  }
+
+  set_native_primary || return 1
+
+  for attempt in 1 2 3 4 5; do
+    if panel_on_primary; then
+      log "Panel placement verified on the primary monitor ($reason)"
+      return 0
+    fi
+    sleep 1
+  done
+
+  after=$(topology_signature) || return 1
+  if [[ $before != "$after" ]]; then
+    log "Topology changed during verification; deferring recovery"
+    return 1
   fi
 
-  sleep 3
-done
+  restart_panel_over_dbus
+}
+
+watch_randr_events() {
+  local watcher_fd watcher_pid line queued status
+
+  while pgrep -u "$(id -u)" -x xfce4-session >/dev/null 2>&1; do
+    coproc XRANDR_WATCHER { exec stdbuf -oL xev -root -event randr -1; }
+    watcher_fd=${XRANDR_WATCHER[0]}
+    watcher_pid=$XRANDR_WATCHER_PID
+    log "Listening for XRandR events with debounce=${debounce_seconds}s"
+
+    while IFS= read -r line <&"$watcher_fd"; do
+      [[ $line == RRScreenChangeNotify* || $line == RRNotify* ]] || continue
+      log "XRandR topology event received"
+
+      while IFS= read -r -t "$debounce_seconds" queued <&"$watcher_fd"; do
+        :
+      done
+
+      if ! pgrep -u "$(id -u)" -x xfce4-session >/dev/null 2>&1; then
+        break
+      fi
+      reconcile_panel 'XRandR change' || true
+    done
+
+    wait "$watcher_pid"
+    status=$?
+    unset XRANDR_WATCHER
+
+    if ! pgrep -u "$(id -u)" -x xfce4-session >/dev/null 2>&1 \
+      || ! xrandr --query >/dev/null 2>&1; then
+      log "XFCE/X11 session ended; monitor helper exiting"
+      return 0
+    fi
+
+    log "WARNING: XRandR event listener exited with status $status; retrying in 5s"
+    sleep 5
+  done
+}
+
+case $mode in
+  --check)
+    require_commands
+    exit $?
+    ;;
+  --once|--watch)
+    ;;
+  *)
+    printf 'Usage: %s [--check|--once|--watch]\n' "$0" >&2
+    exit 2
+    ;;
+esac
+
+require_commands || exit 1
+
+exec 9> "$lock_file"
+if ! flock -n 9; then
+  log "Another monitor helper already holds $lock_file; exiting"
+  exit 0
+fi
+
+trap 'log "Monitor helper stopping"; exit 0' INT TERM HUP
+
+wait_for_session || exit 1
+reconcile_panel startup || true
+
+if [[ $mode == --once ]]; then
+  exit 0
+fi
+
+watch_randr_events

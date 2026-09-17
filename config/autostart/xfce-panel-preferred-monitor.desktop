@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Start primary-monitor panel helper
+Comment=Start the safe event-driven panel monitor after the XFCE session is ready
+Exec=systemctl --user restart xfce-panel-preferred-monitor.service
+OnlyShowIn=XFCE;
+Terminal=false
+StartupNotify=false
+X-GNOME-Autostart-enabled=true

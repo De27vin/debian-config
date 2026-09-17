@@ -34,7 +34,7 @@
       </property>
       <property name="background-style" type="uint" value="0"/>
       <property name="icon-size" type="uint" value="0"/>
-      <property name="output-name" type="string" value="DP-1"/>
+      <property name="output-name" type="string" value="Primary"/>
     </property>
   </property>
   <property name="plugins" type="empty">

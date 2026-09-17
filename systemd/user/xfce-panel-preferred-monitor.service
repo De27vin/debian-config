@@ -1,15 +1,21 @@
 [Unit]
-Description=Keep XFCE taskbar on the primary display
-After=graphical-session.target
-PartOf=graphical-session.target
+Description=Keep the XFCE panel on the primary display
+Documentation=https://github.com/De27vin/debian-config
+After=default.target
+StartLimitIntervalSec=300
+StartLimitBurst=3
 
 [Service]
 Type=simple
-Environment=DISPLAY=:0
-Environment=XAUTHORITY=/home/devin/.Xauthority
-ExecStart=/home/devin/.local/bin/keep-panel-on-preferred-monitor
+ExecStart=%h/.local/bin/keep-panel-on-preferred-monitor --watch
 Restart=on-failure
-RestartSec=2
+RestartSec=15
+KillMode=control-group
+TimeoutStopSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+MemoryMax=64M
+TasksMax=16
 
 [Install]
 WantedBy=default.target
