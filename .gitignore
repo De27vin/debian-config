@@ -1,0 +1,11 @@
+# Editor and filesystem noise
+*~
+*.swp
+.DS_Store
+
+# Runtime state and diagnostics do not belong in this repository
+*.log
+*.pid
+*.socket
+.cache/
+

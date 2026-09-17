@@ -1,0 +1,15 @@
+[Unit]
+Description=Keep XFCE taskbar on the primary display
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/devin/.Xauthority
+ExecStart=/home/devin/.local/bin/keep-panel-on-preferred-monitor
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

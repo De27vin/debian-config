@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Super key opens Whisker menu
+Comment=Open Whisker when Super is tapped; preserve Super modifier shortcuts
+Exec=/home/devin/.local/xcape/usr/bin/xcape -t 500 -e Super_L=Shift_L|Alt_L|F1
+OnlyShowIn=XFCE;
+Terminal=false
+StartupNotify=false
+X-GNOME-Autostart-enabled=true

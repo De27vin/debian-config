@@ -1,0 +1,46 @@
+#!/bin/bash
+set -u
+
+panel_property=/panels/panel-2/output-name
+last_topology=
+
+export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=/run/user/$(id -u)/bus}"
+
+start_panel_if_missing() {
+  if ! pgrep -x xfce4-panel >/dev/null 2>&1; then
+    xfce4-panel >/dev/null 2>&1 &
+    sleep 1
+  fi
+}
+
+while :; do
+  xrandr_state=$(xrandr --query 2>/dev/null || true)
+  topology=$(printf '%s\n' "$xrandr_state" | awk '$2 == "connected" { print $1, $3, $4 }')
+  target=$(printf '%s\n' "$xrandr_state" | awk '
+    $2 == "connected" && fallback == "" { fallback=$1 }
+    $2 == "connected" && $3 == "primary" { print $1; found=1; exit }
+    END { if (!found) print fallback }
+  ')
+
+  [ -n "$target" ] || { sleep 3; continue; }
+
+  current=$(xfconf-query -c xfce4-panel -p "$panel_property" 2>/dev/null || true)
+  if [ "$current" != "$target" ]; then
+    xfconf-query -c xfce4-panel -p "$panel_property" -s "$target"
+  fi
+
+  if [ "$topology" != "$last_topology" ]; then
+    # Xfdesktop and the panel can retain the geometry of a removed output.
+    # Reload both whenever an output connects, disconnects, moves, or becomes primary.
+    xfdesktop --reload >/dev/null 2>&1 || true
+    xfce4-panel --restart >/dev/null 2>&1 || true
+    sleep 1
+    start_panel_if_missing
+    last_topology=$topology
+  else
+    # A panel restart can occasionally stop without relaunching. Repair that too.
+    start_panel_if_missing
+  fi
+
+  sleep 3
+done

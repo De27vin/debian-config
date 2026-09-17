@@ -1,0 +1,14 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Exec=sudo /opt/lampp/manager-linux-x64.run
+Icon=XAMPP-icon
+StartupNotify=true
+Terminal=true
+Categories=Utility;X-XFCE;X-Xfce-Toplevel;
+OnlyShowIn=XFCE;
+Name=XAMPP
+Comment=
+Keywords=run;command;application;program;finder;search;launcher;everything;spotlight;sherlock;applesearch;unity dash;krunner;synapse;ulauncher;launchy;gnome do;pie;apwal;recoll;alfred;quicksilver;tracker;beagle;kupfer;
+X-XFCE-Source=file:///usr/share/applications/xfce4-run.desktop
+Path=
