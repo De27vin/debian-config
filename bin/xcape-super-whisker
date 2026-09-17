@@ -1,0 +1,19 @@
+#!/bin/bash
+
+set -u
+
+if command -v xcape >/dev/null 2>&1; then
+  xcape=$(command -v xcape)
+elif [[ -x $HOME/.local/xcape/usr/bin/xcape ]]; then
+  xcape=$HOME/.local/xcape/usr/bin/xcape
+else
+  printf 'xcape is not installed in PATH or under ~/.local/xcape/usr/bin\n' >&2
+  exit 1
+fi
+
+if [[ ${1:-} == --check ]]; then
+  printf '%s\n' "$xcape"
+  exit 0
+fi
+
+exec "$xcape" -t 500 -e 'Super_L=Shift_L|Alt_L|F1'
