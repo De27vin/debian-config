@@ -1,0 +1,46 @@
+#!/bin/bash
+set -euo pipefail
+
+xdotool_root=/home/devin/.local/xdotool/usr
+export LD_LIBRARY_PATH="$xdotool_root/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+xdotool="$xdotool_root/bin/xdotool"
+
+window_id=$($xdotool getactivewindow)
+eval "$($xdotool getwindowgeometry --shell "$window_id")"
+center_x=$((X + WIDTH / 2))
+center_y=$((Y + HEIGHT / 2))
+
+monitors=()
+while read -r geometry; do
+  if [[ $geometry =~ ^([0-9]+)/[0-9]+x([0-9]+)/[0-9]+\+(-?[0-9]+)\+(-?[0-9]+)$ ]]; then
+    monitors+=("${BASH_REMATCH[1]} ${BASH_REMATCH[2]} ${BASH_REMATCH[3]} ${BASH_REMATCH[4]}")
+  fi
+done < <(xrandr --listmonitors | awk 'NR > 1 { print $3 }')
+
+((${#monitors[@]} > 1)) || exit 0
+current=0
+for index in "${!monitors[@]}"; do
+  read -r monitor_w monitor_h monitor_x monitor_y <<<"${monitors[$index]}"
+  if ((center_x >= monitor_x && center_x < monitor_x + monitor_w &&
+       center_y >= monitor_y && center_y < monitor_y + monitor_h)); then
+    current=$index
+    break
+  fi
+done
+
+target=$(((current + 1) % ${#monitors[@]}))
+read -r current_w current_h current_x current_y <<<"${monitors[$current]}"
+read -r target_w target_h target_x target_y <<<"${monitors[$target]}"
+
+relative_x=$((X - current_x))
+relative_y=$((Y - current_y))
+new_x=$((target_x + relative_x))
+new_y=$((target_y + relative_y))
+
+# Keep at least part of the title bar visible on the destination monitor.
+((new_x < target_x)) && new_x=$target_x
+((new_y < target_y)) && new_y=$target_y
+((new_x > target_x + target_w - 80)) && new_x=$((target_x + target_w - 80))
+((new_y > target_y + target_h - 40)) && new_y=$((target_y + target_h - 40))
+
+$xdotool windowmove "$window_id" "$new_x" "$new_y"
