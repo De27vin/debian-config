@@ -72,6 +72,7 @@ expected_plugins = {
     2: "xfce4-clipman-plugin",
     3: "pulseaudio",
     5: "whiskermenu",
+    9: "tasklist",
     21: "power-manager-plugin",
 }
 for plugin_id, expected in expected_plugins.items():

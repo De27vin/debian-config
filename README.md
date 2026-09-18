@@ -20,7 +20,7 @@ The old configurations contained undefined plugin references and launcher `items
 | `icons/` | `~/.local/share/icons/hicolor/256x256/apps/` |
 | `archive/` | Historical reference only; never installed |
 
-The panel contains Whisker Menu; launchers for Terminal, Firefox ESR, Telegram, WhatsApp, Spotify, Prism Launcher, XAMPP, VS Code, and Android Studio; a workspace pager; Clipman; CPU graph; system tray; PulseAudio; Power Manager; and a clock. Whisker is plugin 5 and uses the Debian swirl icon. XAMPP is launcher plugin 35.
+The panel contains Whisker Menu; launchers for Terminal, Firefox ESR, Telegram, WhatsApp, Spotify, Prism Launcher, XAMPP, VS Code, and Android Studio; Window Buttons for running applications; a workspace pager; Clipman; CPU graph; system tray; PulseAudio; Power Manager; and a clock. Whisker is plugin 5 and uses the Debian swirl icon. Window Buttons is tasklist plugin 9 and shows applications from all workspaces. XAMPP is launcher plugin 35.
 
 ## Dependencies
 
