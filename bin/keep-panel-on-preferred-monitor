@@ -101,11 +101,87 @@ wait_for_session() {
 topology_signature() {
   xrandr --query 2>/dev/null | awk '
     $2 == "connected" {
+      geometry = ""
+      for (field = 3; field <= NF; field++) {
+        if ($field ~ /^[0-9]+x[0-9]+\+-?[0-9]+\+-?[0-9]+$/) {
+          geometry = $field
+          break
+        }
+      }
+      if (geometry == "")
+        next
       primary = ($3 == "primary" ? "primary" : "secondary")
-      geometry = ($3 == "primary" ? $4 : $3)
       print $1, primary, geometry
     }
   '
+}
+
+active_outputs() {
+  xrandr --query 2>/dev/null | awk '
+    $2 == "connected" {
+      for (field = 3; field <= NF; field++) {
+        if ($field ~ /^[0-9]+x[0-9]+\+-?[0-9]+\+-?[0-9]+$/) {
+          print $1
+          break
+        }
+      }
+    }
+  '
+}
+
+connected_primary_output() {
+  xrandr --query 2>/dev/null | awk '
+    $2 == "connected" && $3 == "primary" { print $1; exit }
+  '
+}
+
+ensure_connected_primary() {
+  local current output fallback reason attempt
+  local -a outputs=()
+
+  current=$(connected_primary_output)
+  [[ -n $current ]] && return 0
+
+  mapfile -t outputs < <(active_outputs)
+  if ((${#outputs[@]} == 0)); then
+    log "No active XRandR outputs; deferring reconciliation"
+    return 1
+  fi
+
+  if ((${#outputs[@]} == 1)); then
+    fallback=${outputs[0]}
+    reason='the only active output'
+  else
+    for output in "${outputs[@]}"; do
+      if [[ $output == eDP-* || $output == LVDS-* || $output == DSI-* ]]; then
+        fallback=$output
+        reason='the active built-in display'
+        break
+      fi
+    done
+    if [[ -z ${fallback:-} ]]; then
+      fallback=${outputs[0]}
+      reason='the first active output'
+    fi
+  fi
+
+  log "WARNING: no connected primary output; promoting $fallback ($reason)"
+  if ! xrandr --output "$fallback" --primary; then
+    log "ERROR: failed to promote $fallback to XRandR primary"
+    return 1
+  fi
+
+  for attempt in 1 2 3 4 5; do
+    current=$(connected_primary_output)
+    if [[ $current == "$fallback" ]]; then
+      log "XRandR primary is now $fallback"
+      return 0
+    fi
+    sleep 1
+  done
+
+  log "ERROR: $fallback did not become the connected primary output"
+  return 1
 }
 
 set_native_primary() {
@@ -223,6 +299,8 @@ restart_panel_over_dbus() {
 reconcile_panel() {
   local reason=${1:-manual}
   local before after attempt
+
+  ensure_connected_primary || return 1
 
   before=$(topology_signature) || return 1
   [[ -n $before ]] || {

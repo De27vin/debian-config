@@ -107,11 +107,12 @@ The replacement helper:
 3. holds a singleton lock in `$XDG_RUNTIME_DIR`;
 4. listens for XRandR events through `xev` instead of polling;
 5. debounces event bursts for three seconds;
-6. reasserts native `Primary` only when necessary;
-7. verifies the visible panel window is geometrically inside the primary output;
-8. does nothing when placement is correct;
-9. after five failed checks on a stable topology, may request one restart through the existing panel's D-Bus interface;
-10. rate-limits that fallback to once every five minutes and never starts `xfce4-panel` itself.
+6. detects when XRandR's primary output is disconnected or missing and promotes the sole active output, otherwise preferring the active built-in display;
+7. reasserts native `Primary` only when necessary;
+8. verifies the visible panel window is geometrically inside the primary output;
+9. does nothing when placement is correct;
+10. after five failed checks on a stable topology, may request one restart through the existing panel's D-Bus interface;
+11. rate-limits that fallback to once every five minutes and never starts `xfce4-panel` itself.
 
 The unit has a 64 MB memory limit, a 16-task limit, retained journal output, and a 15-second systemd failure backoff. The XDG autostart entry restarts only the helper after XFCE login so it receives the current session environment.
 
