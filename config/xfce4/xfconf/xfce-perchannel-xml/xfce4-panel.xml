@@ -22,11 +22,12 @@
         <value type="int" value="35"/>
         <value type="int" value="1"/>
         <value type="int" value="7"/>
+        <value type="int" value="12"/>
         <value type="int" value="8"/>
         <value type="int" value="2"/>
         <value type="int" value="9"/>
-        <value type="int" value="10"/>
         <value type="int" value="23"/>
+        <value type="int" value="10"/>
         <value type="int" value="26"/>
         <value type="int" value="11"/>
         <value type="int" value="3"/>
@@ -234,6 +235,11 @@
     </property>
     <property name="plugin-9" type="string" value="tasklist">
       <property name="show-all-workspaces" type="bool" value="true"/>
+    </property>
+    <property name="plugin-12" type="string" value="launcher">
+      <property name="items" type="array">
+        <value type="string" value="17897504331.desktop"/>
+      </property>
     </property>
   </property>
 </channel>

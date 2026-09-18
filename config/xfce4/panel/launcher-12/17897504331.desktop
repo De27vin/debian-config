@@ -1,0 +1,14 @@
+[Desktop Entry]
+Version=1.0
+Icon=org.DolphinEmu.dolphin-emu
+Exec=/usr/bin/flatpak run --branch=stable --arch=x86_64 --command=/app/bin/dolphin-emu-wrapper org.DolphinEmu.dolphin-emu
+Terminal=false
+Type=Application
+Categories=Game;Emulator;
+Name=Dolphin Emulator
+GenericName=Wii/GameCube Emulator
+Comment=A Wii/GameCube Emulator
+X-Desktop-File-Install-Version=0.28
+X-Flatpak-RenamedFrom=dolphin-emu.desktop;
+X-Flatpak=org.DolphinEmu.dolphin-emu
+X-XFCE-Source=file:///var/lib/flatpak/app/org.DolphinEmu.dolphin-emu/x86_64/stable/1b150924d3216b59a3717245955cd7f3c7649edd0fecf39ebb697a0bd24304be/export/share/applications/org.DolphinEmu.dolphin-emu.desktop
