@@ -21,7 +21,7 @@ require_commands() {
   local command
   local missing=0
 
-  for command in awk flock gdbus pgrep stdbuf xev xfconf-query xrandr xwininfo; do
+  for command in awk flock gdbus pgrep sort stdbuf xev xfconf-query xfdesktop xrandr xrefresh xwininfo; do
     if ! command -v "$command" >/dev/null; then
       log "ERROR: required command is missing: $command"
       missing=1
@@ -127,6 +127,24 @@ active_outputs() {
       }
     }
   '
+}
+
+active_output_signature() {
+  active_outputs | LC_ALL=C sort
+}
+
+refresh_desktop() {
+  log "Refreshing XFCE desktop after monitor connection change"
+
+  if ! xfdesktop --reload >/dev/null 2>&1; then
+    log "WARNING: xfdesktop reload request failed"
+  fi
+
+  # Let xfdesktop rebuild its per-output surfaces before repainting X11 windows.
+  sleep 1
+  if ! xrefresh >/dev/null 2>&1; then
+    log "WARNING: X11 refresh request failed"
+  fi
 }
 
 connected_primary_output() {
@@ -329,6 +347,9 @@ reconcile_panel() {
 
 watch_randr_events() {
   local watcher_fd watcher_pid line queued status
+  local previous_outputs current_outputs
+
+  previous_outputs=$(active_output_signature)
 
   while pgrep -u "$(id -u)" -x xfce4-session >/dev/null 2>&1; do
     coproc XRANDR_WATCHER { exec stdbuf -oL xev -root -event randr -1; }
@@ -347,6 +368,13 @@ watch_randr_events() {
       if ! pgrep -u "$(id -u)" -x xfce4-session >/dev/null 2>&1; then
         break
       fi
+
+      current_outputs=$(active_output_signature)
+      if [[ $current_outputs != "$previous_outputs" ]]; then
+        refresh_desktop
+        previous_outputs=$current_outputs
+      fi
+
       reconcile_panel 'XRandR change' || true
     done
 
