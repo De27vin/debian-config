@@ -21,7 +21,7 @@ require_commands() {
   local command
   local missing=0
 
-  for command in awk flock gdbus pgrep sort stdbuf xev xfconf-query xfdesktop xrandr xrefresh xwininfo; do
+  for command in awk flock gdbus pgrep sort stdbuf systemctl systemd-run xev xfconf-query xfdesktop xrandr xrefresh xwininfo; do
     if ! command -v "$command" >/dev/null; then
       log "ERROR: required command is missing: $command"
       missing=1
@@ -136,8 +136,14 @@ active_output_signature() {
 refresh_desktop() {
   log "Refreshing XFCE desktop after monitor connection change"
 
-  if ! xfdesktop --reload >/dev/null 2>&1; then
-    log "WARNING: xfdesktop reload request failed"
+  # A separate unit keeps xfdesktop outside this watcher's resource limits.
+  if systemctl --user is-active --quiet xfce-background-recovery.service; then
+    systemctl --user restart xfce-background-recovery.service || log "WARNING: desktop restart failed"
+  else
+    systemd-run --user --collect --unit=xfce-background-recovery \
+      --setenv="DISPLAY=$DISPLAY" \
+      --setenv="XAUTHORITY=${XAUTHORITY:-$HOME/.Xauthority}" \
+      "$HOME/.local/bin/rebuild-xfce-background" || log "WARNING: desktop recovery failed"
   fi
 
   # Let xfdesktop rebuild its per-output surfaces before repainting X11 windows.
@@ -349,7 +355,7 @@ watch_randr_events() {
   local watcher_fd watcher_pid line queued status
   local previous_outputs current_outputs
 
-  previous_outputs=$(active_output_signature)
+  previous_outputs=$(topology_signature)
 
   while pgrep -u "$(id -u)" -x xfce4-session >/dev/null 2>&1; do
     coproc XRANDR_WATCHER { exec stdbuf -oL xev -root -event randr -1; }
@@ -369,7 +375,7 @@ watch_randr_events() {
         break
       fi
 
-      current_outputs=$(active_output_signature)
+      current_outputs=$(topology_signature)
       if [[ $current_outputs != "$previous_outputs" ]]; then
         refresh_desktop
         previous_outputs=$current_outputs
@@ -418,6 +424,7 @@ trap 'log "Monitor helper stopping"; exit 0' INT TERM HUP
 
 wait_for_session || exit 1
 reconcile_panel startup || true
+refresh_desktop
 
 if [[ $mode == --once ]]; then
   exit 0

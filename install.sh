@@ -89,6 +89,18 @@ while IFS= read -r -d '' source; do
 done < <(find "$repo_dir/bin" -maxdepth 1 -type f -print0)
 
 service_target=$HOME/.config/systemd/user/xfce-panel-preferred-monitor.service
+while IFS= read -r -d '' source; do
+  target=$HOME/.local/share/applications/$(basename "$source")
+  backup_file "$target"
+  install -Dm644 "$source" "$target"
+done < <(find "$repo_dir/applications" -maxdepth 1 -type f -print0)
+
+while IFS= read -r -d '' source; do
+  target=$HOME/.local/libexec/$(basename "$source")
+  backup_file "$target"
+  install -Dm755 "$source" "$target"
+done < <(find "$repo_dir/libexec" -maxdepth 1 -type f -print0)
+
 backup_file "$service_target"
 install -Dm644 \
   "$repo_dir/systemd/user/xfce-panel-preferred-monitor.service" \
@@ -112,3 +124,5 @@ fi
 
 printf 'Installed Debian XFCE configuration.\nBackup: %s\n' "$backup_dir"
 printf 'The monitor helper will start with the next XFCE login.\n'
+printf 'To enable authenticated power-profile switching, install its root-owned helper:\n'
+printf '  sudo install -D -o root -g root -m 755 "%s/libexec/thinkpad-power-profile" /usr/local/libexec/thinkpad-power-profile\n' "$repo_dir"

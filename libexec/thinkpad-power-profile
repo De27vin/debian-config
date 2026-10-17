@@ -1,0 +1,21 @@
+#!/bin/sh
+set -eu
+if [ "$#" -ne 1 ]; then
+    echo 'Expected one profile: performance, balanced or low-power.' >&2
+    exit 2
+fi
+case "$1" in
+    performance|balanced|low-power) ;;
+    *) echo 'Unknown power profile.' >&2; exit 2 ;;
+esac
+if [ "$(id -u)" -ne 0 ]; then
+    echo 'Administrator authentication is required.' >&2
+    exit 1
+fi
+printf '%s\n' "$1" > /sys/firmware/acpi/platform_profile
+actual=$(cat /sys/firmware/acpi/platform_profile)
+if [ "$actual" != "$1" ]; then
+    echo 'Firmware did not accept the requested profile.' >&2
+    exit 1
+fi
+printf '%s\n' "$actual"

@@ -131,7 +131,39 @@ Run a non-watching placement check with panel restart disabled:
 PANEL_ALLOW_RESTART=0 ~/.local/bin/keep-panel-on-preferred-monitor --once
 ```
 
-## Troubleshooting
+## Stable graphics, desktop recovery, audio and power profiles
+
+Compiz autostart is disabled. XFWM4 starts with compositing disabled, the
+configuration that eliminated persistent window trails on this ThinkPad.
+Compiz effects and Compiz-specific shortcuts are therefore no longer active.
+
+After a debounced monitor topology change (including position or resolution),
+the monitor helper rebuilds the XFCE background in a separate transient user
+service, `xfce-background-recovery`. This also runs when the helper starts.
+Unlike `xfdesktop --reload` alone, rebuilding the desktop recreates its windows
+and wallpaper surfaces. The service is separate from the monitor helper's
+64 MB / 16-task limits. No application windows or window manager are restarted
+during normal hotplug recovery. A physical unplug/replug still needs testing.
+
+`config/pipewire/pipewire.conf.d/90-audio-buffer.conf` sets a 1024-sample minimum
+audio quantum to prevent the ALSA underruns observed with Discord and Raft.
+This trades a little audio latency for stability.
+
+The application menu entry **Leistungsprofile** offers Performance, Balance,
+and Battery Save using the firmware's `performance`, `balanced`, and
+`low-power` profiles. Authentication is required for switching. This does not
+force the experimental 28 W RAPL override; firmware safety limits remain active.
+Install the narrow, root-owned helper once after reviewing it:
+
+```sh
+sudo install -D -o root -g root -m 755 libexec/thinkpad-power-profile /usr/local/libexec/thinkpad-power-profile
+```
+
+The regular installer installs the menu entry and a user-local helper source,
+but does not silently request root privileges. The menu entry currently uses
+Devin's home path, like other machine-specific launchers in this repository.
+
+## Troubleshooting notes
 
 - `Plugin "(null)"`: validate that every ID in `/panels/panel-2/plugin-ids` has exactly one `/plugins/plugin-ID` definition. Do not restore files from `archive/`.
 - Gear launcher icons: ensure `/plugins/plugin-ID/items` is an array, not a string.

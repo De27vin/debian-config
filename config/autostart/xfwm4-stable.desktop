@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=Stabile XFCE-Fensterdarstellung
+Exec=xfwm4 --replace --compositor=off
+OnlyShowIn=XFCE;
+StartupNotify=false

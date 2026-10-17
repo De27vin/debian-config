@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Leistungsprofile
+Comment=Zwischen Performance, Balance und Battery Save wechseln
+Exec=/home/devin/.local/bin/leistungsprofile
+Icon=org.xfce.powermanager
+Terminal=false
+Categories=Settings;HardwareSettings;
+Keywords=Akku;Battery;Performance;Energie;Power;
+StartupNotify=false

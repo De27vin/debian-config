@@ -1,0 +1,12 @@
+#!/bin/bash
+set -eu
+# Recreate the desktop surfaces; --reload alone left a black background.
+xfdesktop --quit || true
+for ((attempt=0; attempt<30; attempt++)); do
+    if ! pgrep -u "$(id -u)" -x xfdesktop >/dev/null; then
+        exec xfdesktop
+    fi
+    sleep 0.1
+done
+# The session manager may have already restarted it.
+exec xfdesktop --reload

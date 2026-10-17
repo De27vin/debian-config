@@ -1,0 +1,32 @@
+#!/bin/bash
+set -eu
+current=$(cat /sys/firmware/acpi/platform_profile)
+case "$current" in
+    performance) current_label='Performance' ;;
+    balanced) current_label='Balance' ;;
+    low-power) current_label='Battery Save' ;;
+    *) current_label="$current" ;;
+esac
+selected=$(zenity --list --radiolist \
+    --title='ThinkPad Leistungsprofile' \
+    --text="Aktuell: $current_label\n\nWähle das gewünschte Herstellerprofil.\nEin Wechsel benötigt dein Administratorpasswort." \
+    --width=680 --height=340 \
+    --column='' --column='Profil' --column='Beschreibung' --column='Wert' \
+    --hide-column=4 --print-column=4 \
+    "$([ "$current" = performance ] && echo TRUE || echo FALSE)" 'Performance' 'Mehr Leistung; höhere Lüfterlautstärke und Verbrauch' performance \
+    "$([ "$current" = balanced ] && echo TRUE || echo FALSE)" 'Balance' 'Ausgewogen für den Alltag' balanced \
+    "$([ "$current" = low-power ] && echo TRUE || echo FALSE)" 'Battery Save' 'Weniger Verbrauch und Leistung; für längere Akkulaufzeit' low-power \
+    --ok-label='Anwenden' --cancel-label='Schließen') || exit 0
+[ -n "$selected" ] || exit 0
+case "$selected" in
+    performance) label='Performance' ;;
+    balanced) label='Balance' ;;
+    low-power) label='Battery Save' ;;
+    *) exit 2 ;;
+esac
+if result=$(pkexec /usr/local/libexec/thinkpad-power-profile "$selected" 2>&1); then
+    notify-send --app-name='Leistungsprofile' --icon=preferences-system-power 'Leistungsprofil geändert' "$label ist aktiv."
+else
+    zenity --error --title='Leistungsprofil nicht geändert' --text="Der Wechsel wurde abgebrochen oder ist fehlgeschlagen.\n$result"
+    exit 1
+fi
