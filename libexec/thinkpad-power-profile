@@ -1,21 +1,50 @@
 #!/bin/sh
 set -eu
 if [ "$#" -ne 1 ]; then
-    echo 'Expected one profile: performance, balanced or low-power.' >&2
+    echo 'Expected one power profile.' >&2
     exit 2
 fi
 case "$1" in
-    performance|balanced|low-power) ;;
+    performance|balanced|low-power|boost|--restore) ;;
     *) echo 'Unknown power profile.' >&2; exit 2 ;;
 esac
 if [ "$(id -u)" -ne 0 ]; then
     echo 'Administrator authentication is required.' >&2
     exit 1
 fi
-printf '%s\n' "$1" > /sys/firmware/acpi/platform_profile
+state_dir=/var/lib/thinkpad-power-profile
+choice=$1
+if [ "$choice" = --restore ]; then
+    [ -r "$state_dir/selection" ] || exit 0
+    read -r choice < "$state_dir/selection"
+    [ "$choice" = boost ] || exit 0
+fi
+if [ "$choice" = boost ]; then
+    [ "$(cat /sys/class/power_supply/AC/online)" = 1 ] || {
+        echo 'Boost requires external power.' >&2
+        exit 1
+    }
+    firmware_profile=performance
+else
+    firmware_profile=$choice
+fi
+printf '%s\n' "$firmware_profile" > /sys/firmware/acpi/platform_profile
 actual=$(cat /sys/firmware/acpi/platform_profile)
-if [ "$actual" != "$1" ]; then
+if [ "$actual" != "$firmware_profile" ]; then
     echo 'Firmware did not accept the requested profile.' >&2
     exit 1
 fi
-printf '%s\n' "$actual"
+limit=/sys/class/powercap/intel-rapl-mmio:0/constraint_0_power_limit_uw
+case "$choice" in
+    boost) printf '%s\n' 24000000 > "$limit" ;;
+    performance) printf '%s\n' 20000000 > "$limit" ;;
+esac
+if [ "$choice" = boost ] && [ "$(cat "$limit")" != 24000000 ]; then
+    echo 'Firmware did not accept the 24 W limit.' >&2
+    exit 1
+fi
+if [ "$1" != --restore ]; then
+    install -d -m 700 "$state_dir"
+    printf '%s\n' "$choice" > "$state_dir/selection"
+fi
+printf '%s\n' "$choice"

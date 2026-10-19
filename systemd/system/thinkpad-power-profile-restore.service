@@ -1,0 +1,10 @@
+[Unit]
+Description=Restore selected ThinkPad boost power profile
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/thinkpad-power-profile --restore
+
+[Install]
+WantedBy=multi-user.target

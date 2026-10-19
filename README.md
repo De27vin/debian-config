@@ -150,16 +150,24 @@ audio quantum to prevent the ALSA underruns observed with Discord and Raft.
 This trades a little audio latency for stability.
 
 The application menu entry **Leistungsprofile** offers Performance, Balance,
-and Battery Save using the firmware's `performance`, `balanced`, and
-`low-power` profiles. Authentication is required for switching. This does not
-force the experimental 28 W RAPL override; firmware safety limits remain active.
+Battery Save, and **Mehr Leistung (24 W)**. The first three use the firmware's
+`performance`, `balanced`, and `low-power` profiles. The fourth selects
+Performance and raises the Intel MMIO long-term power limit from 20 to 24 W.
+It is available only on AC power. Raft held approximately 80 °C with no GPU
+thermal throttle in a 30-second 24 W test; 28 W triggered thermal throttling
+in an earlier test. Longer or different workloads may still throttle, and
+firmware temperature protection remains active. Authentication is required.
 Install the narrow, root-owned helper once after reviewing it:
 
 ```sh
 sudo install -D -o root -g root -m 755 libexec/thinkpad-power-profile /usr/local/libexec/thinkpad-power-profile
+sudo install -D -o root -g root -m 644 systemd/system/thinkpad-power-profile-restore.service /etc/systemd/system/thinkpad-power-profile-restore.service
+sudo systemctl daemon-reload
+sudo systemctl enable thinkpad-power-profile-restore.service
 ```
 
-The regular installer installs the menu entry and a user-local helper source,
+The system service restores the selected 24 W boost after a reboot when AC
+power is present. The regular installer installs the menu entry and a user-local helper source,
 but does not silently request root privileges. The menu entry currently uses
 Devin's home path, like other machine-specific launchers in this repository.
 
