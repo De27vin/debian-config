@@ -10,7 +10,7 @@ esac
 selected=$(zenity --list --radiolist \
     --title='ThinkPad Leistungsprofile' \
     --text="Aktuell: $current_label\n\nWähle das gewünschte Herstellerprofil.\nEin Wechsel benötigt dein Administratorpasswort." \
-    --width=680 --height=340 \
+    --width=680 --height=430 \
     --column='' --column='Profil' --column='Beschreibung' --column='Wert' \
     --hide-column=4 --print-column=4 \
     "$([ "$current" = performance ] && echo TRUE || echo FALSE)" 'Performance' 'Mehr Leistung; höhere Lüfterlautstärke und Verbrauch' performance \
