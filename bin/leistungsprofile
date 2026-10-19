@@ -17,8 +17,8 @@ selected=$(zenity --list --radiolist \
     --width=680 --height=490 \
     --column='' --column='Profil' --column='Beschreibung' --column='Wert' \
     --hide-column=4 --print-column=4 \
+    "$([ "$current" = boost ] && echo TRUE || echo FALSE)" 'Mehr Leistung (24 W)' 'Für anspruchsvolle Anwendungen; höherer Energieverbrauch' boost \
     "$([ "$current" = performance ] && echo TRUE || echo FALSE)" 'Performance' 'Mehr Leistung; höhere Lüfterlautstärke und Verbrauch' performance \
-    "$([ "$current" = boost ] && echo TRUE || echo FALSE)" 'Mehr Leistung (24 W)' 'Für Spiele am Netzteil; unter 28 W wegen der gemessenen Wärmegrenze' boost \
     "$([ "$current" = balanced ] && echo TRUE || echo FALSE)" 'Balance' 'Ausgewogen für den Alltag' balanced \
     "$([ "$current" = low-power ] && echo TRUE || echo FALSE)" 'Battery Save' 'Weniger Verbrauch und Leistung; für längere Akkulaufzeit' low-power \
     --ok-label='Anwenden' --cancel-label='Schließen') || exit 0
